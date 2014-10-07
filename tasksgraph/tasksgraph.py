@@ -4,6 +4,8 @@ Created on Oct 2, 2014
 @author: jadiel
 '''
 
+import multiprocessing
+import logging
 from multiprocessing import Pool
 
 
@@ -19,6 +21,7 @@ class TaskGraph:
     def __init__(self, pool_size):
         self.workers=Pool(pool_size)
         self.id_task_dict=dict()
+        self.pending_tasks=0
     
     def id_in_graph(self, ids):
         '''
@@ -33,90 +36,97 @@ class TaskGraph:
     
     
     def task_finished(self, task_id):
+        
         def inner(output_result):
+            
             if task_id in self.id_task_dict:
+                self.pending_tasks-=1
                 task=self.id_task_dict[task_id]
-                task.setOutputResult(output_result)
+                task.setOutput(output_result)
+                
+                
                 for child in task.getChildren():
+                    
                     child.father_finished(task_id)
+                    
                     if child.are_parents_done():
+                        
                         input_args=task.getInput_args()
                         
                         parents_output=[father.getOutput() 
                                         for father in child.getParents()]
-                        user_function=task.getUser_function()
-                        self.worskers.apply_async(func=task_function,
-                                                  args=[user_function,
-                                                        input_args,
+                        
+                        user_function=child.getUser_function()
+                        self.workers.apply_async(func=user_function,
+                                                  args=[input_args,
                                                         parents_output,
-                                                        child.getId(),
-                                                        self.create_task],
+                                                        child.getId()],
                                                   callback=self.task_finished(child.getId())
                                                   )
+                        
         return inner
         
-    def add_to_graph_and_workers(self, factory_function):
-        '''
-        Adds the task to graph and send task to workers if task is independent or if parents
-        of task are already done.
         
-        '''
-        #TODO: I have to implement the synchronization of this function.
-        #I wish that python had a simple word such as java synchronized.
-        def inner(self, parent_ids, input_value, user_function):
-            TaskGraph.next_id+=1;
-            task_id=TaskGraph.next_id
-            
-            task=factory_function(parent_ids, input_value, user_function)
-            self.id_task_dict[task.getId()]=task
-            
-            #if task is independent
-            if not self.id_in_graph(parent_ids):
-                input_args=task.getInput_args()
-                user_function=task.getUser_function()
-                self.workers.apply_async(func=task_function, 
-                                         args=[user_function, 
-                                               input_args, 
-                                               None, task_id,
-                                               self.create_task],
-                                         callback=self.task_finished(task_id)
-                                         )
-                
-            #else if task is dependent
-            else:
-                #if the parents are done.
-                if task.are_parents_done():
-                    input_args=task.getInput_args()
-                    parents_output=[self.id_task_dict[father_id].getOutput() 
-                                    for father_id in parent_ids
-                                    if father_id in self.id_task_dict]
-                    user_function=task.getUser_function()
-                    self.worskers.apply_async(func=task_function,
-                                              args=[user_function,
-                                                    input_args,
-                                                    parents_output,
-                                                    task_id,
-                                                    self.create_task],
-                                              callback=self.task_finished(task_id)
-                                              )
-                
-               
-            return task.getId()
-                                                                  
-        return inner
-    
-    @add_to_graph_and_workers
     def create_task(self, parent_ids, input_value, user_function):
+        TaskGraph.next_id+=1;
         this_task_id=TaskGraph.next_id
+        
+        
+        #1. Finding the list of parents to a task and updating the graph with both children and parents
         if parent_ids==None:
-            return TaskGraph.Task(this_task_id, None, input_value, user_function)
+            task=TaskGraph.Task(this_task_id, None, input_value, user_function)
         else:
             parents=list()
             for father_id in parent_ids:
-                if father_id in TaskGraph.id_task_dict:
-                    parents.append(TaskGraph.id_task_dict[father_id])
-            return TaskGraph.Task(this_task_id, parents, input_value, user_function)
-      
+                if father_id in self.id_task_dict:
+                    parents.append(self.id_task_dict[father_id])
+                    
+            task=TaskGraph.Task(this_task_id, parents, input_value, user_function)
+            
+            for father in parents:
+                father.addChild(task)
+                
+                
+                
+        if not self.id_in_graph(parent_ids):
+            input_args=task.getInput_args()
+            user_function=task.getUser_function()
+            self.workers.apply_async(func=user_function, 
+                                     args=[input_args, 
+                                           None, 
+                                           this_task_id],
+                                     callback=self.task_finished(this_task_id)
+                                     )
+                            
+            #else if task is dependent
+        else:
+                #if the parents are done.
+            if task.are_parents_done():
+                input_args=task.getInput_args()
+                parents_output=[self.id_task_dict[father_id].getOutput() 
+                                for father_id in parent_ids
+                                if father_id in self.id_task_dict]
+                user_function=task.getUser_function()
+                self.worskers.apply_async(func=user_function,
+                                          args=[input_args,
+                                                parents_output,
+                                                this_task_id
+                                                ],
+                                          callback=self.task_finished(this_task_id)
+                                          )
+                
+        self.id_task_dict[this_task_id]=task
+        self.pending_tasks+=1 
+        return task.getId()
+
+    
+    def join(self):
+        while self.pending_tasks>0:
+            pass
+        
+        self.workers.close()
+        self.workers.join()
+    
     class Task:
         def __init__(self, task_id, parents, input_args, user_function):
             self.id=task_id
@@ -159,4 +169,7 @@ class TaskGraph:
             self.output=output
             
         def getOutput(self):
-            return self.output                
+            return self.output       
+        
+
+   

@@ -1,0 +1,44 @@
+Java HotSpot(TM) 64-Bit Server VM warning: ignoring option MaxPermSize=256m; support was removed in 8.0
+org.eclipse.m2e.logback.configuration: The org.eclipse.m2e.logback.configuration bundle was activated before the state location was initialized.  Will retry after the state location is initialized.
+org.eclipse.m2e.logback.configuration: Logback config file: /home/jadiel/workspace/.metadata/.plugins/org.eclipse.m2e.logback.configuration/logback.1.5.0.20140606-0033.xml
+org.eclipse.m2e.logback.configuration: Initializing logback
+java.lang.ClassCastException: org.eclipse.osgi.internal.framework.EquinoxConfiguration$1 cannot be cast to java.lang.String
+	at org.eclipse.m2e.logback.configuration.LogHelper.logJavaProperties(LogHelper.java:26)
+	at org.eclipse.m2e.logback.configuration.LogPlugin.loadConfiguration(LogPlugin.java:189)
+	at org.eclipse.m2e.logback.configuration.LogPlugin.configureLogback(LogPlugin.java:144)
+	at org.eclipse.m2e.logback.configuration.LogPlugin.access$2(LogPlugin.java:107)
+	at org.eclipse.m2e.logback.configuration.LogPlugin$1.run(LogPlugin.java:62)
+	at java.util.TimerThread.mainLoop(Timer.java:555)
+	at java.util.TimerThread.run(Timer.java:505)
+[INFO] Setting property: classpath.resource.loader.class => 'org.codehaus.plexus.velocity.ContextClassLoaderResourceLoader'.
+[INFO] Setting property: velocimacro.messages.on => 'false'.
+[INFO] Setting property: resource.loader => 'classpath'.
+[INFO] Setting property: resource.manager.logwhenfound => 'false'.
+Eclipse: Fatal IO error 0 (Success) on X server :0.
+Eclipse: Cannot open display: 
+Eclipse:
+JVM terminated. Exit code=1
+/usr/bin/java
+-Dosgi.requiredJavaVersion=1.6
+-XX:MaxPermSize=256m
+-Xms40m
+-Xmx512m
+-jar /opt/eclipse//plugins/org.eclipse.equinox.launcher_1.3.0.v20140415-2008.jar
+-os linux
+-ws gtk
+-arch x86_64
+-showsplash /opt/eclipse//plugins/org.eclipse.platform_4.4.0.v20140925-0400/splash.bmp
+-launcher /opt/eclipse/eclipse
+-name Eclipse
+--launcher.library /opt/eclipse//plugins/org.eclipse.equinox.launcher.gtk.linux.x86_64_1.1.200.v20140603-1326/eclipse_1605.so
+-startup /opt/eclipse//plugins/org.eclipse.equinox.launcher_1.3.0.v20140415-2008.jar
+--launcher.appendVmargs
+-exitdata 3b0009
+-product org.eclipse.epp.package.jee.product
+-vm /usr/bin/java
+-vmargs
+-Dosgi.requiredJavaVersion=1.6
+-XX:MaxPermSize=256m
+-Xms40m
+-Xmx512m
+-jar /opt/eclipse//plugins/org.eclipse.equinox.launcher_1.3.0.v20140415-2008.jar 
