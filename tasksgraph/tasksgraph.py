@@ -26,7 +26,7 @@ def exception_function(input_args, parents_output, task_id):
     task id of the current exception to the previous exception and throws it.
     There will be an exception among one of the parents output if this function is called.
     '''
-    new_message="Error in task "+task_id+" because of a father malfunction"
+    new_message="Error in task "+str(task_id)+" because of a father malfunction"
     raise ConcatenatingException(parents_output, new_message)
     
     
@@ -65,6 +65,8 @@ class TaskGraph:
             
             This is the most elegant solution I could come up with.
             '''    
+            print(exception)
+            
             if task_id in self.id_task_dict:
                 self.pending_tasks-=1
                 task=self.id_task_dict[task_id]

@@ -18,7 +18,7 @@ def sum(input_args, parents_output, task_id):
 
 def join_results(input_args, parents_output, task_id):
     
-    
+    5/0
     toReturn="\n".join([str(a) for a in parents_output])
     
     return toReturn
