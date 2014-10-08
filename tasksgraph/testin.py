@@ -18,13 +18,14 @@ def sum(input_args, parents_output, task_id):
 
 def join_results(input_args, parents_output, task_id):
     
+    
     toReturn="\n".join([str(a) for a in parents_output])
     
     return toReturn
 
 def print_result(input_args, parents_output, task_id):
     
-    print parents_output
+    print(parents_output)
     
 def main():
     taskGraph=tasksgraph.TaskGraph(4)
@@ -41,6 +42,7 @@ def main():
     joiner_task=taskGraph.create_task([joiner_task], None, join_results)
     joiner_task=taskGraph.create_task([joiner_task], None, join_results)
     printer_task=taskGraph.create_task([joiner_task], None, print_result)
+    
     
     taskGraph.join()
     
