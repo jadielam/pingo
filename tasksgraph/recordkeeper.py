@@ -26,6 +26,9 @@ def write_function(output_task_args, parents_output, task_id):
     for p_output in parents_output:
         with open(file_name, 'wb') as output:
             pickle.dump((metadata, p_output), output, pickle.HIGHEST_PROTOCOL)
+    task_taskoutputfile_dict=output_task_args['task_taskoutputfile_dict']
+    
+    task_taskoutputfile_dict[output_task_id]=file_name
     
 def read_function(input_task_args, parents_output, task_id):
     import pickle
@@ -82,7 +85,8 @@ class RecordKeeper:
         #   context in the map.  And it is assumed that there is a one-to-many relationship
         #   between processes and context (a process can run many contexts in its lifetime. 
         #   A context is only ran by one process.
-        #2. Because it is assumed that I am not using multiprocessing to create tasks.
+        #2. Because it is assumed that I am not using multiprocessing to create tasks within a 
+        #   given context.
         self.taskid_lock.acquire()
         next_task_id=self.taskgraph.pick_next_task_id(context)
         if next_task_id in self.task_taskoutputfile_dict:
@@ -97,6 +101,7 @@ class RecordKeeper:
             output_task_args['file_name']=self.__build_task_output_path(task_id)
             output_task_args['task_id']=task_id
             output_task_args['parent_ids']=parent_ids
+            output_task_args['task_taskoutputfile_dict']=self.task_taskoutputfile_dict
             self.taskgraph.create_task([task_id], output_task_args, write_function)
         
         return task_id
