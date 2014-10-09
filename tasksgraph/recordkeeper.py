@@ -5,6 +5,7 @@ Created on Oct 6, 2014
 '''
 
 from tasksgraph import TaskGraph
+from multiprocessing import Lock
 
 def write_function(output_task_args, parents_output, task_id):
     import time
@@ -64,18 +65,33 @@ class RecordKeeper:
         self.taskgraph=TaskGraph(pool_size)
         self.keeper_path=keeper_path
         self.task_taskoutputfile_dict=read_keeper_file(keeper_path)
+        self.taskid_lock=Lock()
     
     def __build_task_output_path(self, task_id):
         return str(self.keeper_path)+"_"+str(task_id)
     
     def create_task(self, parent_ids, input_value, user_function, context=None):
         
+        #TODO: We are placing this lock here because of the SimpleContextManager.
+        #we are placing it as precaution, but is not needed. If it were needed, it would
+        #be a sign of programming by the user violating the assumptions
+        #But we have it anyways, as a sign of safety.
+        
+        #Why a lock is not needed using NestedContextManager:
+        #1. because for a given context I only modify the value of the entry related to that
+        #   context in the map.  And it is assumed that there is a one-to-many relationship
+        #   between processes and context (a process can run many contexts in its lifetime. 
+        #   A context is only ran by one process.
+        #2. Because it is assumed that I am not using multiprocessing to create tasks.
+        self.taskid_lock.acquire()
         next_task_id=self.taskgraph.pick_next_task_id(context)
         if next_task_id in self.task_taskoutputfile_dict:
             input_task_args=dict()
             input_task_args['file_name']=self.__build_task_output_path(next_task_id)
             task_id=self.taskgraph.create_task(parent_ids, input_task_args, read_function)
+            self.taskid_lock.release()
         else:
+            self.taskid_lock.release()
             task_id=self.taskgraph.create_task(parent_ids, input_value, user_function, context)
             output_task_args=dict()
             output_task_args['file_name']=self.__build_task_output_path(task_id)
