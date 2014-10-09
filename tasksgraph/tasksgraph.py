@@ -3,11 +3,11 @@ Created on Oct 2, 2014
 
 @author: jadiel
 '''
-
+import multiprocessing
 from multiprocessing import Pool
 
 from exceptions import ConcatenatingException
-
+from context import NestedContextManager
 
 def task_function(user_function, input_args, parents_output, task_id, task_factory):
     '''
@@ -34,14 +34,14 @@ class TaskGraph:
     '''
     Class to manage the creation and running of pool tasks.
     '''
-    next_id=0;
-    
+       
     def __init__(self, pool_size):
         self.workers=Pool(pool_size)
         self.id_task_dict=dict()
         self.pending_tasks=0
+        self.context_manager=NestedContextManager()
     
-    def id_in_graph(self, ids):
+    def __id_in_graph(self, ids):
         '''
         Return True if there is at least one id in the list of ids that is in the id_task_dict.
         Otherwise it returns false
@@ -52,7 +52,7 @@ class TaskGraph:
                 return True
         return False
     
-    def task_aborted(self, task_id):
+    def __task_aborted(self, task_id):
         '''
         Whenever a task is aborted, this method gets called
         '''
@@ -86,12 +86,12 @@ class TaskGraph:
                                                   args=[input_args,
                                                         parents_output,
                                                         child.getId()],
-                                                  callback=self.task_finished(child.getId()),
-                                                  error_callback=self.task_aborted(child.getId())
+                                                  callback=self.__task_finished(child.getId()),
+                                                  error_callback=self.__task_aborted(child.getId())
                                                   )
         return inner
     
-    def task_finished(self, task_id):
+    def __task_finished(self, task_id):
         
         def inner(output_result):
             
@@ -117,18 +117,18 @@ class TaskGraph:
                                                   args=[input_args,
                                                         parents_output,
                                                         child.getId()],
-                                                  callback=self.task_finished(child.getId()),
-                                                  error_callback=self.task_aborted(child.getId())
+                                                  callback=self.__task_finished(child.getId()),
+                                                  error_callback=self.__task_aborted(child.getId())
                                                   )
                         
         return inner
         
+    def pick_next_task_id(self, context):
+        return self.context_manager.pick_next_task_id(context)
         
-    def create_task(self, parent_ids, input_value, user_function):
-        TaskGraph.next_id+=1;
-        this_task_id=TaskGraph.next_id
-        
-        
+    def create_task(self, parent_ids, input_value, user_function, context=None):
+        this_task_id=self.context_manager.get_next_task_id(context)
+                        
         #1. Finding the list of parents to a task and updating the graph with both children and parents
         if parent_ids==None:
             task=TaskGraph.Task(this_task_id, None, input_value, user_function)
@@ -144,16 +144,16 @@ class TaskGraph:
                 father.addChild(task)
                 
                 
-                
-        if not self.id_in_graph(parent_ids):
+        #2. If the task is independent, or if all its parents         
+        if not self.__id_in_graph(parent_ids):
             input_args=task.getInput_args()
             user_function=task.getUser_function()
             self.workers.apply_async(func=user_function, 
                                      args=[input_args, 
                                            None, 
                                            this_task_id],
-                                     callback=self.task_finished(this_task_id),
-                                     error_callback=self.task_aborted(this_task_id)
+                                     callback=self.__task_finished(this_task_id),
+                                     error_callback=self.__task_aborted(this_task_id)
                                      )
                             
             #else if task is dependent
@@ -170,8 +170,8 @@ class TaskGraph:
                                                 parents_output,
                                                 this_task_id
                                                 ],
-                                          callback=self.task_finished(this_task_id),
-                                          error_callback=self.task_aborted(this_task_id)
+                                          callback=self.__task_finished(this_task_id),
+                                          error_callback=self.__task_aborted(this_task_id)
                                           )
                 
         self.id_task_dict[this_task_id]=task
@@ -232,6 +232,3 @@ class TaskGraph:
             
         def getOutput(self):
             return self.output       
-        
-
-   
