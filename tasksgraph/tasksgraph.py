@@ -97,6 +97,7 @@ class TaskGraph:
             self.pending_tasks-=1
             if task_id in self.id_task_dict:
                 
+                print(task_id)
                 task=self.id_task_dict[task_id]
                 task.setOutput(output_result)
                 
@@ -106,7 +107,7 @@ class TaskGraph:
                     child.father_finished(task_id)
                     
                     if child.are_parents_done():
-                        
+                        print("child_id: "+str(child.getId()))
                         input_args=child.getInput_args()
                         
                         parents_output=[father.getOutput() 

@@ -19,9 +19,7 @@ def sum(input_args, parents_output, task_id):
 
 def join_results(input_args, parents_output, task_id):
     
-    print("started join_results")
     toReturn="\n".join([str(a) for a in parents_output])
-    print("finished join_results")
     return toReturn
 
 def print_result(input_args, parents_output, task_id):
@@ -37,7 +35,7 @@ def main():
     
     parent_ids=list()
     for i in range(iterations):
-        task_id=taskGraph.create_task(None, 300, sum)
+        task_id=taskGraph.create_task(None, 30, sum)
         parent_ids.append(task_id)
         
     joiner_task=taskGraph.create_task(parent_ids, None, join_results)
