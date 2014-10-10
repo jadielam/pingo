@@ -170,7 +170,7 @@ class TaskGraph:
                                 for father_id in parent_ids
                                 if father_id in self.id_task_dict]
                 user_function=task.getUser_function()
-                self.worskers.apply_async(func=user_function,
+                self.workers.apply_async(func=user_function,
                                           args=[input_args,
                                                 parents_output,
                                                 this_task_id

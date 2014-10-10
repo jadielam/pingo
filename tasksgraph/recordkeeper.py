@@ -63,10 +63,10 @@ def update_function(update_task_args, parents_output, task_id):
         while not q.empty():
             l.append(q.get())
     
-    to_write=linesep.join([str(a) for a in l])
+        to_write=linesep.join([str(a) for a in l])
                 
-    with open(file_path, "a") as f:
-        f.write(to_write+linesep)
+        with open(file_path, "a") as f:
+            f.write(to_write+linesep)
 
 def read_keeper_path(filepath, dictionary):
     try:
@@ -121,9 +121,10 @@ class RecordKeeper:
         next_task_id=self.taskgraph.pick_next_task_id(context)
         #print(str(self.task_taskoutputfile_keeper))
         #If this computation has already being performed, then read it from file instead
+        
         if next_task_id in self.taskid_filepath: 
-            print("got here")           
-            print(next_task_id)
+                     
+            
             input_task_args=dict()
             input_task_args['file_name']=self.taskid_filepath[next_task_id]
             task_id=self.taskgraph.create_task(parent_ids, input_task_args, read_function)
@@ -143,13 +144,13 @@ class RecordKeeper:
             output_task_args['parent_ids']=parent_ids
             output_task_args['taskid_filepath']=self.taskid_filepath
             output_task_args['queue_of_entries']=self.queue_of_entries
-            write_task=self.taskgraph.create_task([task_id], output_task_args, write_function)
+            write_task=self.taskgraph.create_task([task_id], output_task_args, write_function, "RecordKeeper")
             
             #3. Create the update output dictionary task.
             update_task_args=dict()
             update_task_args['queue_of_entries']=self.queue_of_entries
             update_task_args['file_path']=self.keeper_path
-            self.taskgraph.create_task([write_task], update_task_args, update_function)
+            self.taskgraph.create_task([write_task], update_task_args, update_function, "RecordKeeper")
         
         return task_id
     
