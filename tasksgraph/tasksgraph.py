@@ -65,7 +65,7 @@ class TaskGraph:
             
             This is the most elegant solution I could come up with.
             '''    
-            print(exception)
+            print("Exception: "+str(exception))
             
             if task_id in self.id_task_dict:
                 self.pending_tasks-=1
@@ -94,9 +94,9 @@ class TaskGraph:
     def __task_finished(self, task_id):
         
         def inner(output_result):
-            
+            self.pending_tasks-=1
             if task_id in self.id_task_dict:
-                self.pending_tasks-=1
+                
                 task=self.id_task_dict[task_id]
                 task.setOutput(output_result)
                 
