@@ -35,7 +35,7 @@ def main():
     
     parent_ids=list()
     for i in range(iterations):
-        task_id=taskGraph.create_task(None, 30, sum)
+        task_id=taskGraph.create_task(None, 300, sum)
         parent_ids.append(task_id)
         
     joiner_task=taskGraph.create_task(parent_ids, None, join_results)

@@ -5,7 +5,6 @@
 
 from tasksgraph import TaskGraph
 import multiprocessing
-from collections import OrderedDict
 from os import linesep
 
 
@@ -122,7 +121,9 @@ class RecordKeeper:
         next_task_id=self.taskgraph.pick_next_task_id(context)
         #print(str(self.task_taskoutputfile_keeper))
         #If this computation has already being performed, then read it from file instead
-        if next_task_id in self.taskid_filepath:            
+        if next_task_id in self.taskid_filepath: 
+            print("got here")           
+            print(next_task_id)
             input_task_args=dict()
             input_task_args['file_name']=self.taskid_filepath[next_task_id]
             task_id=self.taskgraph.create_task(parent_ids, input_task_args, read_function)

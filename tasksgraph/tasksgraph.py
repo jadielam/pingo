@@ -72,6 +72,7 @@ class TaskGraph:
             if task_id in self.id_task_dict:
                 self.pending_tasks-=1
                 task=self.id_task_dict[task_id]
+                task.setDone()
                 task.setOutput(str(exception))
                 
                 for child in task.getChildren():
@@ -96,11 +97,11 @@ class TaskGraph:
     def __task_finished(self, task_id):
         
         def inner(output_result):
-            self.pending_tasks-=1
+            
             if task_id in self.id_task_dict:
-                
-                print(task_id)
+                self.pending_tasks-=1
                 task=self.id_task_dict[task_id]
+                task.setDone()
                 task.setOutput(output_result)
                 
                 
@@ -109,7 +110,7 @@ class TaskGraph:
                     child.father_finished(task_id)
                     
                     if child.are_parents_done():
-                        print("child_id: "+str(child.getId()))
+                        
                         input_args=child.getInput_args()
                         
                         parents_output=[father.getOutput() 
@@ -198,7 +199,14 @@ class TaskGraph:
             self.user_function=user_function
             self.children=list()
             self.output=None
+            self.done=False
             self.ids_of_parents_done=set()
+            
+        def isDone(self):
+            return self.done
+        
+        def setDone(self):
+            self.done=True
             
         def are_parents_done(self):
             if self.parents==None: return True
@@ -218,6 +226,8 @@ class TaskGraph:
         def addChild(self, child):
             if (isinstance(child, TaskGraph.Task)):
                 self.children.append(child)
+                if self.done:
+                    child.father_finished(self.id)
             
         def getParents(self):
             return self.parents
