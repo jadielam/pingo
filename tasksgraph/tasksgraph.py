@@ -1,6 +1,8 @@
 '''
 Created on Oct 2, 2014
-
+Solution is: whenever I add a new child to the parent,
+I check if the parent is done already
+and I call the parent_done method on the child.
 @author: jadiel
 '''
 import multiprocessing
