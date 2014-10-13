@@ -72,6 +72,7 @@ class TaskGraph:
             if task_id in self.id_task_dict:
                 self.pending_tasks-=1
                 task=self.id_task_dict[task_id]
+                task.setStateFailed()
                 task.setDone()
                 task.setOutput(str(exception))
                 
@@ -200,8 +201,22 @@ class TaskGraph:
             self.children=list()
             self.output=None
             self.done=False
+            self.state="created"
             self.ids_of_parents_done=set()
+        
+        
+        def setStateReady_to_run(self):
+            self.state="ready-to-run"
             
+        def setStateRunning(self):
+            self.state="running"
+        
+        def setStateFinished(self):
+            self.state="finished"
+        
+        def setStateFailed(self):
+            self.state="failed"
+                
         def isDone(self):
             return self.done
         
@@ -228,6 +243,8 @@ class TaskGraph:
                 self.children.append(child)
                 if self.done:
                     child.father_finished(self.id)
+                if self.state=="failed":
+                    child.setUser_function(exception_function)
             
         def getParents(self):
             return self.parents
