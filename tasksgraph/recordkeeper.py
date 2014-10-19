@@ -3,7 +3,7 @@
 @author: jadiel
 '''
 
-from tasksgraph import TaskGraph
+from tasksgraph import CoreEngine
 import multiprocessing
 from os import linesep
 
@@ -93,7 +93,7 @@ def read_keeper_path(filepath, dictionary):
 class RecordKeeper:
     
     def __init__(self, pool_size, keeper_path):
-        self.taskgraph=TaskGraph(pool_size)
+        self.taskgraph=CoreEngine(pool_size)
         self.keeper_path=keeper_path
         self.taskid_filepath=multiprocessing.Manager().dict()
         self.queue_of_entries=multiprocessing.Manager().Queue()

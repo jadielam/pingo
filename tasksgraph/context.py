@@ -29,21 +29,6 @@ class ContextManager(object):
         Returns what would be the next task id assigned to that context
         '''
         pass
-class SimpleContextManager(ContextManager):
-    '''
-    The SimpleContextManager assumes only one context, the root context, that is, that tasks can only be
-    created in the root context.
-    It might not be needed in the future, since the NestedContextManager can handle this special case
-    '''
-    def __init__(self):
-        self.next_id=0;
-    
-    def get_next_task_id(self, context=None):
-        self.next_id+=1
-        return self.next_id
-    
-    def pick_next_task_id(self, context=None):
-        return self.next_id+1
 
 class NestedContextManager(ContextManager):
     '''
