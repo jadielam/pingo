@@ -14,7 +14,7 @@ from tasksgraph.exceptions import ConcatenatingException
 from tasksgraph.context import NestedContextManager
 from tasksgraph.taskgraph import TaskGraph
 from tasksgraph.systemtasks import ExceptionTask
-
+from tasksgraph.systemtasks import OutputWriterTask
 
 class IdAssignerTask(object):
     '''
@@ -157,13 +157,10 @@ class CoreEngine:
                 
            
             #1.1 Creating the output task to this task
-            #output_task_id=self.__context_manager.get_next_task_id("coreengine")
-            #output_task_function=OutputWriterTask(output_task_id, this_task_id)
-            #output_task=Task(output_task_id, [task], this_task_id, output_task_function)
-            #task.addChild(output_task)
-            #self.__id_task_dict[output_task_id]=output_task
-             
-                    
+            output_task_id=self.__context_manager.get_next_task_id("outputtask")
+            output_task_function=OutputWriterTask(output_task_id, this_task_id)
+            self.__task_graph.create_task(output_task_id, [this_task_id], this_task_id, output_task_function, "outputtask")
+                                
             #2. If the task is independent         
             if not self.__id_in_graph(parent_ids):
                 
@@ -278,7 +275,9 @@ class CoreEngine:
                     if self.__task_graph.are_parents_done(child_id):
                         self.__assign_task_to_process(child_id)
                 
-                self.__queue.task_done()
+                if self.__task_graph.get_task_type(task_id)=="normal":
+                    self.__queue.task_done()
+        
         return inner
     
     def __task_finished(self, task_id):
@@ -296,14 +295,16 @@ class CoreEngine:
                 self.__task_graph.set_done(task_id)
                 self.__task_graph.set_output(task_id, output_result)
                 
-                print("got here task_finished")
+                
                 for child_id in self.__task_graph.get_children_ids(task_id):
                     
                     self.__task_graph.set_father_finished(child_id, task_id)
-                    print("got here inside if")                 
+                                     
                     if self.__task_graph.are_parents_done(child_id):
                         self.__assign_task_to_process(child_id)
-                               
-                self.__queue.task_done()        
+                
+                if self.__task_graph.get_task_type(task_id)=="normal":               
+                    self.__queue.task_done()        
+        
         return inner
         

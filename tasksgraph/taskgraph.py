@@ -107,7 +107,7 @@ class TaskGraph:
         Returns None if the task_id is not in the dictionary of tasks.
         '''
         if task_id in self.__id_task_dict:
-            return self.__id_task_dict[task_id].get_task_type()
+            return self.__id_task_dict[task_id].getType()
         return None
     
     def id_in_graph(self, ids):
