@@ -10,6 +10,7 @@ import multiprocessing
 class SumTask(AbstractTask):
     
     def __call__(self):
+        print("In sumTask")
         suma=0
         limit=self.input_args
         
@@ -25,6 +26,7 @@ class SumTask(AbstractTask):
 class JoinTask(AbstractTask):
     
     def __call__(self):
+        
         print("In JoinTask")
         to_return="\n".join([str(a) for a in self.parents_output])
         self.output=to_return
@@ -33,6 +35,7 @@ class JoinTask(AbstractTask):
 class PrintTask(AbstractTask):
     
     def __call__(self):
+        
         print("In PrintTask")
         print(self.parents_output)
     
@@ -40,9 +43,9 @@ class PrintTask(AbstractTask):
 class MainTask(AbstractTask):
     
     def __call__(self):
-        
+        print("In MainTask")
         sum_ids=[]
-        for i in range(400):
+        for i in range(5):
             task_id=self.create_task(SumTask, [self.task_id], 50)
             sum_ids.append(task_id)
         

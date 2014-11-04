@@ -11,9 +11,9 @@ from multiprocessing import Pool
 
 
 from tasksgraph.exceptions import ConcatenatingException
-from tasksgraph.callableobject import AbstractTask
 from tasksgraph.context import NestedContextManager
-
+from tasksgraph.taskgraph import TaskGraph
+from tasksgraph.systemtasks import ExceptionTask
 
 
 class IdAssignerTask(object):
@@ -72,82 +72,6 @@ class IdAssignerTask(object):
             next_task_id=self.__context_manager.get_next_task_id(context_id)
             self.__pipe_conn.send(next_task_id)
             
-class ExceptionTask(AbstractTask):
-    def __call__(self):
-        new_message="Error in task "+str(self.task_id)+" because of parent malfunction."
-        raise ConcatenatingException(self.parents_output, new_message)
-    
-class Task:
-    def __init__(self, task_id, parents, input_args, callable_object):
-        self.id=task_id
-        self.parents=parents
-        self.input_args=input_args
-        self.callable_object=callable_object
-        self.children=list()
-        self.output=None
-        self.done=False
-        self.state="created"
-        self.ids_of_parents_done=set()
-    
-    
-    def setStateReady_to_run(self):
-        self.state="ready-to-run"
-        
-    def setStateRunning(self):
-        self.state="running"
-    
-    def setStateFinished(self):
-        self.state="finished"
-    
-    def setStateFailed(self):
-        self.state="failed"
-            
-    def isDone(self):
-        return self.done
-    
-    def setDone(self):
-        self.done=True
-        
-    def are_parents_done(self):
-        if self.parents==None: return True
-        if len(self.ids_of_parents_done)==len(self.parents):
-            return True
-        return False
-    
-    def father_finished(self, father_id):
-        self.ids_of_parents_done.add(father_id)
-        
-    def getId(self):
-        return self.id
-        
-    def getChildren(self):
-        return self.children
-    
-    def addChild(self, child):
-        if (isinstance(child, Task)):
-            self.children.append(child)
-            if self.done:
-                child.father_finished(self.id)
-            if self.state=="failed":
-                child.setUser_function(ExceptionTask(child.getId(), child.getInput_args()))
-        
-    def getParents(self):
-        return self.parents
-    
-    def getInput_args(self):
-        return self.input_args
-    
-    def setUser_function(self, user_function):
-        self.callable_object=user_function
-        
-    def getUser_function(self):
-        return self.callable_object
-    
-    def setOutput(self, output):
-        self.output=output
-        
-    def getOutput(self):
-        return self.output           
     
 class CoreEngine:
     '''
@@ -163,13 +87,15 @@ class CoreEngine:
         #used to create synchronization objects to pass to threads
         self.__manager=manager
         
-        self.__id_task_dict=dict()
+        self.__task_graph=TaskGraph()
         
         self.__processors=processors
         
         #is incremented each time a task is sent to run, and decremented
         #each time it finishes or fails.
         self.__pending_tasks=0   
+        
+        self.__context_manager=NestedContextManager()
     
     def __call__(self):
         while not self.__queue.empty() or self.__pending_tasks>0:
@@ -188,10 +114,18 @@ class CoreEngine:
         '''
         if ids==None: return False
         for task_id in ids:
-            if task_id in self.__id_task_dict:
+            if self.__task_graph.contains(task_id):
                 return True
         return False
     
+    def __finished(self, task_id):
+        '''
+        returns True if a task is in a dictionary and is already done
+        Otherwise returns False
+        '''
+        
+        return self.__task_graph.finished(task_id)
+        
     def __process_task(self, user_function, parent_ids):
         '''
         This might be the function doing all the dirty job.
@@ -199,74 +133,93 @@ class CoreEngine:
         '''
         #user_function is the same as the task received from the queue, just that I keep that name
         #in order to not break this code already written
-        print("in process_task")
-        
+                
         
         this_task_id=user_function.getTask_id()
         input_value=user_function.getInput_args()
-        print(this_task_id)                        
-        #1. Finding the list of parents to a task and updating the graph with both children and parents
-        if parent_ids==None:
-            task=Task(this_task_id, None, input_value, user_function)
-        else:
-            
-            #A check if it is that I get a single element instead of a list.
-            if not isinstance(parent_ids, list):
-                temp_parents=list()
-                temp_parents.append(parent_ids)
-                parent_ids=temp_parents
-                
-            parents=list()
-            print(parent_ids)
-            for father_id in parent_ids:
-                if father_id in self.__id_task_dict:
-                    parents.append(self.__id_task_dict[father_id])
-                    
-            task=Task(this_task_id, parents, input_value, user_function)
-            
-            for father in parents:
-                father.addChild(task)
-                
-                
-        #2. If the task is independent         
-        if not self.__id_in_graph(parent_ids):
-            
-            self.__assign_task_to_process(task)
-                            
-        #else if task is dependent
-        else:
-            #if the parents are done.
-            if task.are_parents_done():
-                print("pparents_are_done")
-                self.__assign_task_to_process(task)
-        
-        self.__id_task_dict[this_task_id]=task
-        
-        return task.getId()
 
-    def __get_parent_ids(self, task):
+        if not self.__finished(this_task_id):
+            
+            #1. Finding the list of parents to a task and updating the graph with both children and parents
+            if parent_ids==None:
+                
+                self.__task_graph.create_task(this_task_id, None, input_value, user_function)
+                
+            else:
+                
+                #A check if it is that I get a single element instead of a list.
+                if not isinstance(parent_ids, list):
+                    temp_parents=list()
+                    temp_parents.append(parent_ids)
+                    parent_ids=temp_parents
+                
+                self.__task_graph.create_task(this_task_id, parent_ids, input_value, user_function)   
+                
+           
+            #1.1 Creating the output task to this task
+            #output_task_id=self.__context_manager.get_next_task_id("coreengine")
+            #output_task_function=OutputWriterTask(output_task_id, this_task_id)
+            #output_task=Task(output_task_id, [task], this_task_id, output_task_function)
+            #task.addChild(output_task)
+            #self.__id_task_dict[output_task_id]=output_task
+             
+                    
+            #2. If the task is independent         
+            if not self.__id_in_graph(parent_ids):
+                
+                self.__assign_task_to_process(this_task_id)
+                                
+            #else if task is dependent
+            else:
+                #if the parents are done.
+                if self.__task_graph.are_parents_done(this_task_id):
+                    
+                    self.__assign_task_to_process(this_task_id)
+            
+            
         
-        parents=task.getParents()
-        if parents==None: return []
+        else:
+            #If the task is already in task graph and marked as finished, then place all of its children in the queue
+            #to be processed.
+            '''
+            TODO
+            Another source of error here.
+            If a task is marked as done, then all its children will be placed in the queue.
+            If I place a non-normal task in the queue, I could potentially have infinite
+            recursion here (i.e.: An output task placed in the queue will be processed
+            as a normal task and an output task will be created for it.
+            
+            Somehow I must develop better semantic in the program so as to determine
+            what the behavior is for different kind of tasks.
+            
+            Temporary solution: Make the task graph return all its normal children, so that
+            no hazzle is done here. 
+            '''
+            normal_children_ids=self.__task_graph.get_normal_children_ids(this_task_id)
+            for child_id in normal_children_ids:
+                
+                if self.__task_graph.contains(child_id):
+                    user_function=self.__task_graph.get_callable_object(child_id)
+                    parent_ids=self.__task_graph.get_parents(child_id)
+                    self.__queue.put(user_function, parent_ids)
+                
+        return this_task_id
+
+    def __get_parent_ids(self, task_id):
         
-        parent_ids=[]
+        return self.__task_graph.get_parents(task_id)
+            
+    def __assign_task_to_process(self, task_id):
         
-        for parent in parents:
-            parent_ids.append(parent.getId())
-        return parent_ids
-    
-    def __assign_task_to_process(self, task):
-        
-        user_function=task.getUser_function()
+        user_function=self.__task_graph.get_callable_object(task_id)
         
         #0. TODO: I don't need input_args in task
         
         #1. Set the parents_output
-        print(user_function.getTask_id())
-        parent_ids=self.__get_parent_ids(task)
-        parents_output=[self.__id_task_dict[father_id].getOutput() 
-                                for father_id in parent_ids
-                                if father_id in self.__id_task_dict]
+        
+        #Here is where the magic happens.
+        parents_output = self.__task_graph.get_parents_output(task_id)
+        
         user_function.parents_output=parents_output
             
         #2. Set the queue
@@ -306,24 +259,24 @@ class CoreEngine:
             '''    
             print("Exception: "+str(exception))
             
-            if task_id in self.__id_task_dict:
+            if self.__task_graph.contains(task_id):
                 
                 self.__pending_tasks-=1
                                 
-                task=self.__id_task_dict[task_id]
+                
                 #TODO: I need to call this automatically whenever that thread is done
                 #I need to figure out how to cover the apply function with another function
-                task.getUser_function().pipe_conn.close()
-                task.setStateFailed()
-                task.setDone()
-                task.setOutput(str(exception))
+                self.__task_graph.get_callable_object(task_id).pipe_conn.close()
+                self.__task_graph.set_state_failed(task_id)
+                self.__task_graph.set_done(task_id)
+                self.__task_graph.set_output(task_id, str(exception))
                 
-                for child in task.getChildren():
-                    child.father_finished(task_id)
-                    child.setUser_function(ExceptionTask(child.getId(), child.getInput_args()))
+                for child_id in self.__task_graph.get_children_ids(task_id):
+                    self.__task_graph.set_father_finished(child_id, task_id)
+                    self.__task_graph.set_callable_object(child_id, ExceptionTask(child_id, self.__task_graph.get_input_args(child_id)))
                     
-                    if child.are_parents_done():
-                        self.__assign_task_to_process(child)
+                    if self.__task_graph.are_parents_done(child_id):
+                        self.__assign_task_to_process(child_id)
                 
                 self.__queue.task_done()
         return inner
@@ -332,26 +285,25 @@ class CoreEngine:
         
         def inner(output_result):
             
-            if task_id in self.__id_task_dict:
+            if self.__task_graph.contains(task_id):
                 self.__pending_tasks-=1
-                print("task_finished "+str(task_id))
-                task=self.__id_task_dict[task_id]
                 
+                              
                 #TODO: I need to call this automatically whenever that thread is done
                 #I need to figure out how to cover the apply function with another function
-                task.getUser_function().pipe_conn.close()
-                task.setDone()
-                task.setOutput(output_result)
+                
+                self.__task_graph.get_callable_object(task_id).pipe_conn.close()
+                self.__task_graph.set_done(task_id)
+                self.__task_graph.set_output(task_id, output_result)
+                
+                print("got here task_finished")
+                for child_id in self.__task_graph.get_children_ids(task_id):
+                    
+                    self.__task_graph.set_father_finished(child_id, task_id)
+                    print("got here inside if")                 
+                    if self.__task_graph.are_parents_done(child_id):
+                        self.__assign_task_to_process(child_id)
                                
-                
-                for child in task.getChildren():
-                    
-                    child.father_finished(task_id)
-                    
-                    if child.are_parents_done():
-                        
-                        self.__assign_task_to_process(child)
-                
                 self.__queue.task_done()        
         return inner
         
