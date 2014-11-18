@@ -97,6 +97,7 @@ class TaskGraph:
         self.__id_task_dict=dict()
         self.__to_synchronize=list()
         self.__synchronization_file=synchronization_file
+        self.__read_synchronization_file()
     
     def __read_synchronization_file(self):
         '''
