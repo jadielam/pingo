@@ -78,7 +78,7 @@ class CoreEngine:
     Class to manage the creation and running of pool tasks.
     '''
        
-    def __init__(self, pool_size, queue, manager, processors):
+    def __init__(self, pool_size, queue, manager, processors, synchronization_file=None):
         
         self.__workers=Pool(pool_size)
         
@@ -87,7 +87,7 @@ class CoreEngine:
         #used to create synchronization objects to pass to threads
         self.__manager=manager
         
-        self.__task_graph=TaskGraph()
+        self.__task_graph=TaskGraph(synchronization_file)
         
         self.__processors=processors
         
@@ -98,14 +98,18 @@ class CoreEngine:
         self.__context_manager=NestedContextManager()
     
     def __call__(self):
-        while not self.__queue.empty() or self.__pending_tasks>0:
-            task, parent_ids=self.__queue.get()
+        while True:
+            try:
+                task, parent_ids=self.__queue.get()
                         
-            self.__process_task(task, parent_ids)
+                self.__process_task(task, parent_ids)
             
-            for processor in self.__processors:
-                processor.process(task)
+                for processor in self.__processors:
+                    processor.process(task)
+            except EOFError:
+                break
         
+        self.__task_graph.synchronize(True)
     
     def __id_in_graph(self, ids):
         '''
@@ -157,9 +161,10 @@ class CoreEngine:
                 
            
             #1.1 Creating the output task to this task
-            output_task_id=self.__context_manager.get_next_task_id("outputtask")
-            output_task_function=OutputWriterTask(output_task_id, this_task_id)
-            self.__task_graph.create_task(output_task_id, [this_task_id], this_task_id, output_task_function, "outputtask")
+            #Maybe I don't need this anymore since I am saving everything in the TaskGraph.
+            #output_task_id=self.__context_manager.get_next_task_id("outputtask")
+            #output_task_function=OutputWriterTask(output_task_id, this_task_id)
+            #self.__task_graph.create_task(output_task_id, [this_task_id], this_task_id, output_task_function, "outputtask")
                                 
             #2. If the task is independent         
             if not self.__id_in_graph(parent_ids):
@@ -179,7 +184,7 @@ class CoreEngine:
             #If the task is already in task graph and marked as finished, then place all of its children in the queue
             #to be processed.
             '''
-            TODO
+            TODO:
             Another source of error here.
             If a task is marked as done, then all its children will be placed in the queue.
             If I place a non-normal task in the queue, I could potentially have infinite
@@ -190,7 +195,9 @@ class CoreEngine:
             what the behavior is for different kind of tasks.
             
             Temporary solution: Make the task graph return all its normal children, so that
-            no hazzle is done here. 
+            no hazzle is done here.
+            
+            NOTE: Error has been fixed using the temporary solution. 
             '''
             normal_children_ids=self.__task_graph.get_normal_children_ids(this_task_id)
             for child_id in normal_children_ids:
@@ -208,6 +215,11 @@ class CoreEngine:
             
     def __assign_task_to_process(self, task_id):
         
+        if self.__task_graph.is_running(task_id):
+            return
+        
+        self.__task_graph.set_state_running(task_id)
+                
         user_function=self.__task_graph.get_callable_object(task_id)
         
         #0. TODO: I don't need input_args in task
@@ -235,7 +247,10 @@ class CoreEngine:
                                    callback=self.__task_finished(user_function.getTask_id()),
                                    error_callback=self.__task_aborted(user_function.getTask_id())
                                   )
+        
+        
         self.__pending_tasks+=1
+        
     
     
     def registerProcessor(self, processor):

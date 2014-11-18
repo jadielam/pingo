@@ -51,13 +51,14 @@ class MainTask(AbstractTask):
         
         join_task=self.create_task(JoinTask, sum_ids, None)
         print_task=self.create_task(PrintTask, [join_task], None)
+        print("At the end of Main Task")
         
 
 def main():
     
     
     #2. Create the Computation Manager and pass it the class to run.
-    c_manager=ComputationManager(4, MainTask, None)
+    c_manager=ComputationManager(4, "testing_jadiel", MainTask, None)
     
     #3. Run the Manager
     c_manager_process=multiprocessing.Process(target=c_manager)

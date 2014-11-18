@@ -44,6 +44,7 @@ class AbstractTask(object):
         self.pipe_conn.send(self.task_id)
         self.condition.notify()
         self.condition.release()
+        #TODO: Analyze this piece of code intereaction, because sometimes there is a deadlock.
         next_id=self.pipe_conn.recv()
         return next_id
         

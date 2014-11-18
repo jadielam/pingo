@@ -15,6 +15,7 @@ class TaskMapSynchronizer(AbstractTask):
     'output_file' is the file path of the file to which they will be outputted.
     
     It then appends the tasks nodes into the file.
+    TODO: Currently not in use.
     '''
     def __call__(self):
         import pickle

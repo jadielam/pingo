@@ -23,9 +23,10 @@ def create_pool_of_pipes_conditions(pipes, conditions):
 
 class ComputationManager(object):
     
-    def __init__(self, pool_size, first_task_class, task_input):
+    def __init__(self, pool_size, synchronization_file, first_task_class, task_input):
         self.__pool_size=pool_size
         self.__first_task=first_task_class("root", task_input)
+        self.__synchronization_file=synchronization_file
             
     def __call__(self):
         #1. Create a manager
@@ -38,7 +39,7 @@ class ComputationManager(object):
         queue.put((self.__first_task, None))
 
         #6. Create the Core Engine thread and send it running.
-        core_engine_thread=threading.Thread(target=CoreEngine(self.__pool_size, queue, manager, []))
+        core_engine_thread=threading.Thread(target=CoreEngine(self.__pool_size, queue, manager, [], self.__synchronization_file))
         core_engine_thread.start()
         
         #7. call join on the queue.
