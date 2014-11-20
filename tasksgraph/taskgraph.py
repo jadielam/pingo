@@ -154,8 +154,8 @@ class TaskGraph:
             
             while True:
                 task = pickle.load(self.__f)
-                print(task.getState())
-                print(task.getId())
+                
+                
                 self.__id_task_dict[task.getId()] = task
                 
         
