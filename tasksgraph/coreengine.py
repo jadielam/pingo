@@ -105,7 +105,7 @@ class CoreEngine:
                 (task_class, task_id, input_args, parent_ids)=self.__queue.get()
                                        
                 self.__process_task(task_class, task_id, input_args, parent_ids)
-                print("in __call__ "+str(task_id))
+                
                 for processor in self.__processors:
                     processor.process(task_id)
             except EOFError:
@@ -129,7 +129,7 @@ class CoreEngine:
         returns True if a task is in a dictionary and is already done
         Otherwise returns False
         '''
-        print(str(task_id)+" "+str(self.__task_graph.finished(task_id)))
+        
         return self.__task_graph.finished(task_id)
         
     def __process_task(self, task_class, this_task_id, input_value, parent_ids):
