@@ -8,15 +8,15 @@ import pickle
 from tasksgraph.systemtasks import ExceptionTask
 
 class Task:
-    def __init__(self, task_id, parents, input_args, callable_object, ttype='normal'):
+    def __init__(self, task_id, parents, input_args, task_class, ttype='normal'):
         self.id=task_id
         if parents == None:
             self.parents=list()
         else:
             self.parents=parents
-            
+        
+        self.task_class=task_class  #class of the callable object
         self.input_args=input_args
-        self.callable_object=callable_object
         self.children=list()
         self.output=None
         self.done=False
@@ -81,11 +81,15 @@ class Task:
     def getInput_args(self):
         return self.input_args
     
-    def setCallable_object(self, user_function):
-        self.callable_object=user_function
-        
+    def setTask_class(self, task_class, input_args):
+        self.task_class=task_class
+        self.input_args=input_args
+    
+    def getTask_class(self):
+        return self.task_class
+    
     def getCallable_object(self):
-        return self.callable_object
+        return self.task_class(self.id, self.input_args)
     
     def setOutput(self, output):
         self.output=output
@@ -98,7 +102,6 @@ class Task:
         Used to avoid pickle issues when storing the callable object.
         '''
         state = self.__dict__.copy()
-        del state['callable_object']
         return state
     
     def __setstate__(self, d):
@@ -106,15 +109,30 @@ class Task:
         Used to avoid pickle issues when storing the callable object.
         '''
         self.__dict__ = d
-        self.callable_object=None
-    
+            
 class TaskGraph:
     
     def __init__(self, synchronization_file=None):
         self.__id_task_dict=dict()
         self.__to_synchronize=list()
         self.__synchronization_file=synchronization_file
-        #self.__read_synchronization_file()
+        
+        #This piece of code first attempts to open a file in read mode.
+        #If the file does not exist, it simply creates a new file and opens it in write mode.
+        try:
+            self.__f=open(self.__synchronization_file, "rb+")
+            self.__read_synchronization_file()
+        except:
+            try:
+                self.__f=open(self.__synchronization_file, "wb+")
+            except:
+                print("Error opening synchronization file at TaskGraph.__init__")
+            
+    def __del__(self):
+        try:
+            self.__f.close()
+        except:
+            pass
     
     def __read_synchronization_file(self):
         '''
@@ -133,18 +151,18 @@ class TaskGraph:
         I need to be able to rollback the map to plain 
         '''
         try:
-            f = open(self.__synchronization_file, "rb")
             
             while True:
-                task = pickle.load(f)
+                task = pickle.load(self.__f)
+                print(task.getState())
+                print(task.getId())
                 self.__id_task_dict[task.getId()] = task
                 
         
         except EOFError:
             #Close the file that was opened.
-            f.truncate(0)
-            f.close()
-            
+            self.__f.truncate(0)
+                        
         except FileNotFoundError:
             print("File "+str(self.__synchronization_file)+" does not exist")
         
@@ -170,7 +188,7 @@ class TaskGraph:
         list.
         '''
         
-        if (len(self.__to_synchronize)>4) or force:
+        if ((len(self.__to_synchronize)>4) or force) and self.__f!=None:
             synchronizing=self.__to_synchronize.copy()
             self.__to_synchronize.clear()
             
@@ -178,15 +196,13 @@ class TaskGraph:
                        
             tasks = [self.__id_task_dict[task_id] for task_id in synchronizing if (self.finished(task_id) or self.failed(task_id))]
             #try:
-            f = open(self.__synchronization_file, "wb+")
-                        
+                                    
             for i in range(len(tasks)):
                 
                 task=tasks[i]
-                pickle.dump(task, f)
+                pickle.dump(task, self.__f)
                 
-            f.close()
-            
+                     
             #except:
                 #Code left here for future reference, if I ever implement this that way.
                 # We take care of things this way anticipating some multi-hreading in this method.
@@ -324,6 +340,11 @@ class TaskGraph:
             return self.__id_task_dict[task_id].getInput_args()
         return None
     
+    def get_task_class(self, task_id):
+        if task_id in self.__id_task_dict:
+            return self.__id_task_dict[task_id].getTask_class()
+        return None
+    
     def get_callable_object(self, task_id):
         '''
         Returns the callable object that corresponds to that task id
@@ -333,9 +354,9 @@ class TaskGraph:
             return self.__id_task_dict[task_id].getCallable_object()
         return None
     
-    def set_callable_object(self, task_id, callable_object):
+    def set_task_class(self, task_id, task_class, input_args=None):
         if task_id in self.__id_task_dict:
-            self.__id_task_dict[task_id].setCallable_object(callable_object)
+            self.__id_task_dict[task_id].setTask_class(task_class, input_args)
             
     def are_parents_done(self, task_id):
         '''
@@ -407,7 +428,7 @@ class TaskGraph:
             if task.isDone():
                 child.father_finished(task_id)
             if task.getState()=='failed':
-                child.setCallable_object(ExceptionTask(child.getId(), child.getInput_args()))
+                child.setTask_class(ExceptionTask(child.getId(), child.getInput_args()))
         
             self.__append_synchronize(task_id)
             self.__append_synchronize(child_id)

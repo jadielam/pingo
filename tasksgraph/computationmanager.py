@@ -25,7 +25,8 @@ class ComputationManager(object):
     
     def __init__(self, pool_size, synchronization_file, first_task_class, task_input):
         self.__pool_size=pool_size
-        self.__first_task=first_task_class("root", task_input)
+        self.__first_task_class=first_task_class
+        self.__first_task_input=task_input
         self.__synchronization_file=synchronization_file
             
     def __call__(self):
@@ -36,7 +37,7 @@ class ComputationManager(object):
         queue=manager.Queue()
         
         #3. Assign the first job from the user to the queue
-        queue.put((self.__first_task, None))
+        queue.put((self.__first_task_class, "root", self.__first_task_input, None))
 
         #6. Create the Core Engine thread and send it running.
         core_engine_thread=threading.Thread(target=CoreEngine(self.__pool_size, queue, manager, [], self.__synchronization_file))

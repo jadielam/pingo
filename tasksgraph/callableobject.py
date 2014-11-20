@@ -60,6 +60,6 @@ class AbstractTask(object):
         
         '''
         new_task_id=self.__get_next_id()
-        self.queue.put((taskclass(new_task_id, input_args), parent_ids))
+        self.queue.put((taskclass, new_task_id, input_args, parent_ids))
         return new_task_id
     
