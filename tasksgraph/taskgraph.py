@@ -39,6 +39,7 @@ class Task:
     
     def setStateFinished(self):
         self.state="finished"
+        self.done=True
     
     def setStateFailed(self):
         self.state="failed"
@@ -50,6 +51,7 @@ class Task:
         return self.done
     
     def setDone(self):
+        self.state="finished"
         self.done=True
         
     def are_parents_done(self):
@@ -90,14 +92,29 @@ class Task:
         
     def getOutput(self):
         return self.output           
-
+    
+    def __getstate__(self):
+        '''
+        Used to avoid pickle issues when storing the callable object.
+        '''
+        state = self.__dict__.copy()
+        del state['callable_object']
+        return state
+    
+    def __setstate__(self, d):
+        '''
+        Used to avoid pickle issues when storing the callable object.
+        '''
+        self.__dict__ = d
+        self.callable_object=None
+    
 class TaskGraph:
     
     def __init__(self, synchronization_file=None):
         self.__id_task_dict=dict()
         self.__to_synchronize=list()
         self.__synchronization_file=synchronization_file
-        self.__read_synchronization_file()
+        #self.__read_synchronization_file()
     
     def __read_synchronization_file(self):
         '''
@@ -117,21 +134,31 @@ class TaskGraph:
         '''
         try:
             f = open(self.__synchronization_file, "rb")
+            
             while True:
                 task = pickle.load(f)
                 self.__id_task_dict[task.getId()] = task
+                
+        
         except EOFError:
-            #do nothing, because this is what we were waiting for.
+            #Close the file that was opened.
+            f.truncate(0)
             f.close()
-        except:
+            
+        except FileNotFoundError:
             print("File "+str(self.__synchronization_file)+" does not exist")
-            #I do this because I don't want to have the map in an inconsistent state. 
-            #I need to sit down and think of a better solution where I don't have to delete 
-            #everything.
-            self.__id_task_dict.clear()
-            #TODO: If instead of doing this, I was simply connecting parents and children together in a careful way, as indicated in point 3.
-            #Then I wouldn't have the need to clear here, because at any moment, the graph would be consistent.
+        
+    def __append_synchronize(self, task_id):
+        if task_id in self.__id_task_dict:
+            state = self.__id_task_dict[task_id].getState()
+            
+            if state == "failed" or state =="finished":
+                self.__to_synchronize.append(task_id)
     
+    def __extend_synchronize(self, ids):
+        filtered_ids = [a for a in ids if self.finished(a)]
+        self.__to_synchronize.extend(filtered_ids)
+        
     def synchronize(self, force=False):
         '''
         It writes to the synchronization file the elements in the synchronization list.
@@ -147,16 +174,25 @@ class TaskGraph:
             synchronizing=self.__to_synchronize.copy()
             self.__to_synchronize.clear()
             
-            tasks = [self.__id_task_dict[task_id] for task_id in synchronizing]
-            try:
-                f = open(self.__synchronization_file, "wb+")
-                for task in tasks:
-                    pickle.dump(task, f)
-                f.close()
-            except:
+            #Note, that we only synchronize the tasks that are already finished.
+                       
+            tasks = [self.__id_task_dict[task_id] for task_id in synchronizing if (self.finished(task_id) or self.failed(task_id))]
+            #try:
+            f = open(self.__synchronization_file, "wb+")
+                        
+            for i in range(len(tasks)):
+                
+                task=tasks[i]
+                pickle.dump(task, f)
+                
+            f.close()
+            
+            #except:
+                #Code left here for future reference, if I ever implement this that way.
                 # We take care of things this way anticipating some multi-hreading in this method.
-                synchronizing.extend(self.__to_synchronize)
-                self.__to_synchronize = synchronizing
+                
+                #synchronizing.extend(self.__to_synchronize)
+                #self.__to_synchronize = synchronizing
             
     def contains(self, task_id):
         '''
@@ -194,12 +230,31 @@ class TaskGraph:
             return False
         return self.__id_task_dict[task_id].isDone()
     
-        
+    def failed(self, task_id):
+        if not task_id in self.__id_task_dict:
+            return False
+        return self.__id_task_dict[task_id].getState()=="failed"
+    
+    def children_finished(self, task_id):
+        '''
+        Returns True if every child of task_id finished, otherwise it returns false
+        '''
+        if task_id in self.__id_task_dict:
+            task=self.__id_task_dict[task_id]
+            children_ids=task.getChildren()
+            to_return=True
+            for child_id in children_ids:
+                if not self.finished(child_id):
+                    to_return=False
+            return to_return
+        else:
+            return False
+            
     def create_task(self, task_id, parent_ids, input_args, callable_object, ttype="normal"):
         if parent_ids==None:
             task=Task(task_id, None, input_args, callable_object, ttype)
             self.__id_task_dict[task_id]=task
-            self.__to_synchronize.append(task_id)
+            self.__append_synchronize(task_id)
             self.synchronize()
         else:
             if not isinstance(parent_ids, list):
@@ -215,13 +270,15 @@ class TaskGraph:
                 self.add_child(father_id, task_id)
         
                 #This ids have been modified, hence, they need to be synchronized. 
-            self.__to_synchronize.append(task_id)
-            self.__to_synchronize.extend(parent_ids)
+            self.__append_synchronize(task_id)
+            self.__extend_synchronize(parent_ids)
             self.synchronize()    
                 
     def get_normal_children_ids(self, task_id):
         '''
         Returns only the ids of the children whose type is normal
+        Normal type is the type assigned to tasks that were placed in the queue.
+        Any other task that is run but is not placed in the queue must have some other type.
         '''
         ids_to_return = list()
         if task_id in self.__id_task_dict:
@@ -280,9 +337,6 @@ class TaskGraph:
         if task_id in self.__id_task_dict:
             self.__id_task_dict[task_id].setCallable_object(callable_object)
             
-            self.__to_synchronize.append(task_id)
-            self.synchronize()
-    
     def are_parents_done(self, task_id):
         '''
         If the parents of the task are done, or if the task does not exist, it returns True.
@@ -310,8 +364,6 @@ class TaskGraph:
     def set_state_running(self, task_id):
         if task_id in self.__id_task_dict:
             self.__id_task_dict[task_id].setStateRunning()
-            self.__to_synchronize.append(task_id)
-            self.synchronize()
             
     def set_state_failed(self, task_id):
         '''
@@ -320,14 +372,14 @@ class TaskGraph:
         if task_id in self.__id_task_dict:
             self.__id_task_dict[task_id].setStateFailed()
         
-            self.__to_synchronize(task_id)
+            self.__append_synchronize(task_id)
             self.synchronize()
             
     def set_done(self, task_id):
         if task_id in self.__id_task_dict:
             self.__id_task_dict[task_id].setDone()
         
-            self.__to_synchronize.append(task_id)
+            self.__append_synchronize(task_id)
             self.synchronize()
     
     def set_output(self, task_id, t_output):
@@ -337,14 +389,14 @@ class TaskGraph:
         if task_id in self.__id_task_dict:
             self.__id_task_dict[task_id].setOutput(t_output)
             
-            self.__to_synchronize.append(task_id)
+            self.__append_synchronize(task_id)
             self.synchronize()
 
     def set_father_finished(self, child_id, father_id):
         if child_id in self.__id_task_dict:
             self.__id_task_dict[child_id].father_finished(father_id)
         
-            self.__to_synchronize.append(child_id)
+            self.__append_synchronize(child_id)
             self.synchronize()
         
     def add_child(self, task_id, child_id):
@@ -357,6 +409,6 @@ class TaskGraph:
             if task.getState()=='failed':
                 child.setCallable_object(ExceptionTask(child.getId(), child.getInput_args()))
         
-            self.__to_synchronize.append(task_id)
-            self.__to_synchronize.append(child_id)
+            self.__append_synchronize(task_id)
+            self.__append_synchronize(child_id)
             self.synchronize()

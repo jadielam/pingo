@@ -96,6 +96,8 @@ class CoreEngine:
         self.__pending_tasks=0   
         
         self.__context_manager=NestedContextManager()
+        
+        self.__run_lock=multiprocessing.Lock()
     
     def __call__(self):
         while True:
@@ -127,27 +129,24 @@ class CoreEngine:
         returns True if a task is in a dictionary and is already done
         Otherwise returns False
         '''
-        
+        print(str(task_id)+" "+str(self.__task_graph.finished(task_id)))
         return self.__task_graph.finished(task_id)
         
-    def __process_task(self, user_function, parent_ids):
+    def __process_task(self, callable_object, parent_ids):
         '''
         This might be the function doing all the dirty job.
         
-        '''
-        #user_function is the same as the task received from the queue, just that I keep that name
-        #in order to not break this code already written
-                
+        '''        
+        this_task_id=callable_object.getTask_id()
+        input_value=callable_object.getInput_args()
         
-        this_task_id=user_function.getTask_id()
-        input_value=user_function.getInput_args()
-
+        
         if not self.__finished(this_task_id):
             
             #1. Finding the list of parents to a task and updating the graph with both children and parents
             if parent_ids==None:
                 
-                self.__task_graph.create_task(this_task_id, None, input_value, user_function)
+                self.__task_graph.create_task(this_task_id, None, input_value, callable_object)
                 
             else:
                 
@@ -157,7 +156,7 @@ class CoreEngine:
                     temp_parents.append(parent_ids)
                     parent_ids=temp_parents
                 
-                self.__task_graph.create_task(this_task_id, parent_ids, input_value, user_function)   
+                self.__task_graph.create_task(this_task_id, parent_ids, input_value, callable_object)   
                 
            
             #1.1 Creating the output task to this task
@@ -203,9 +202,9 @@ class CoreEngine:
             for child_id in normal_children_ids:
                 
                 if self.__task_graph.contains(child_id):
-                    user_function=self.__task_graph.get_callable_object(child_id)
+                    callable_object=self.__task_graph.get_callable_object(child_id)
                     parent_ids=self.__task_graph.get_parents(child_id)
-                    self.__queue.put(user_function, parent_ids)
+                    self.__queue.put(callable_object, parent_ids)
                 
         return this_task_id
 
@@ -215,41 +214,46 @@ class CoreEngine:
             
     def __assign_task_to_process(self, task_id):
         
-        if self.__task_graph.is_running(task_id):
-            return
-        
-        self.__task_graph.set_state_running(task_id)
-                
-        user_function=self.__task_graph.get_callable_object(task_id)
-        
-        #0. TODO: I don't need input_args in task
-        
-        #1. Set the parents_output
-        
-        #Here is where the magic happens.
-        parents_output = self.__task_graph.get_parents_output(task_id)
-        
-        user_function.parents_output=parents_output
+        self.__run_lock.acquire()
+        if not self.__task_graph.is_running(task_id):
             
-        #2. Set the queue
-        user_function.queue=self.__queue
+        
+            self.__task_graph.set_state_running(task_id)
+            self.__run_lock.release()
+                    
+            callable_object=self.__task_graph.get_callable_object(task_id)
+            
+            #0. TODO: I don't need input_args in task
+            
+            #1. Set the parents_output
+            
+            #Here is where the magic happens.
+            parents_output = self.__task_graph.get_parents_output(task_id)
+            
+            callable_object.parents_output=parents_output
                 
-        #3. Set the pipes and create the IdAssignerThread
-        conn1, conn2=multiprocessing.Pipe()
-        condition=self.__manager.Condition()
-        user_function.condition=condition
-        user_function.pipe_conn=conn1
+            #2. Set the queue
+            callable_object.queue=self.__queue
+                    
+            #3. Set the pipes and create the IdAssignerThread
+            conn1, conn2=multiprocessing.Pipe()
+            condition=self.__manager.Condition()
+            callable_object.condition=condition
+            callable_object.pipe_conn=conn1
+            
+            id_assigner_thread=threading.Thread(target=IdAssignerTask(conn2, condition))
+            id_assigner_thread.start()
+            
+            self.__workers.apply_async(func=callable_object,
+                                       callback=self.__task_finished(callable_object.getTask_id()),
+                                       error_callback=self.__task_aborted(callable_object.getTask_id())
+                                      )
+            
+            
+            self.__pending_tasks+=1
         
-        id_assigner_thread=threading.Thread(target=IdAssignerTask(conn2, condition))
-        id_assigner_thread.start()
-        
-        self.__workers.apply_async(func=user_function,
-                                   callback=self.__task_finished(user_function.getTask_id()),
-                                   error_callback=self.__task_aborted(user_function.getTask_id())
-                                  )
-        
-        
-        self.__pending_tasks+=1
+        else:
+            self.__run_lock.release()
         
     
     

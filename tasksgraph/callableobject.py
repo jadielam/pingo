@@ -29,12 +29,15 @@ class AbstractTask(object):
         '''
         pass
     
+      
+        
     def getTask_id(self):
         return self.task_id
     
     def getInput_args(self):
         return self.input_args
-        
+    
+    
     def __get_next_id(self):
         '''
         Requests the pipe to get from the CoreEngine what will be the next id that will
