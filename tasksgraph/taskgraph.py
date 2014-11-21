@@ -161,7 +161,8 @@ class TaskGraph:
         
         except EOFError:
             #Close the file that was opened.
-            self.__f.truncate(0)
+            #self.__f.truncate(0)
+            pass
                         
         except FileNotFoundError:
             print("File "+str(self.__synchronization_file)+" does not exist")
