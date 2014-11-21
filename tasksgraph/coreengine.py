@@ -138,9 +138,11 @@ class CoreEngine:
         
         '''        
         
-        if not self.__finished(this_task_id):
+        #If the task does not exist, or if the task exists but failed
+        if not self.__task_graph.contains(this_task_id) or self.__task_graph.failed(this_task_id):
             
             #1. Finding the list of parents to a task and updating the graph with both children and parents
+            
             if parent_ids==None:
                 
                 self.__task_graph.create_task(this_task_id, None, input_value, task_class)
@@ -154,6 +156,7 @@ class CoreEngine:
                     parent_ids=temp_parents
                 
                 self.__task_graph.create_task(this_task_id, parent_ids, input_value, task_class)   
+                
                 
            
             #1.1 Creating the output task to this task
@@ -173,6 +176,7 @@ class CoreEngine:
                 if self.__task_graph.are_parents_done(this_task_id):
                     
                     self.__assign_task_to_process(this_task_id)
+                    
             
             
         
@@ -195,8 +199,11 @@ class CoreEngine:
             
             NOTE: Error has been fixed using the temporary solution. 
             '''
+            
+            
             self.__queue.task_done()
             normal_children_ids=self.__task_graph.get_normal_children_ids(this_task_id)
+            
             for child_id in normal_children_ids:
                 
                 if self.__task_graph.contains(child_id):
@@ -215,10 +222,11 @@ class CoreEngine:
             
     def __assign_task_to_process(self, task_id):
         
-        self.__run_lock.acquire()
-        if not self.__task_graph.is_running(task_id):
-            
         
+        self.__run_lock.acquire()
+        if not self.__task_graph.is_running(task_id) and not self.__task_graph.finished(task_id):
+            
+            
             self.__task_graph.set_state_running(task_id)
             self.__run_lock.release()
                     
@@ -276,6 +284,7 @@ class CoreEngine:
             
             This is the most elegant solution I could come up with.
             '''    
+            
             print("Exception: "+str(exception))
             
             if self.__task_graph.contains(task_id):
@@ -287,7 +296,7 @@ class CoreEngine:
                 #I need to figure out how to cover the apply function with another function
                 callable_object.pipe_conn.close()
                 self.__task_graph.set_state_failed(task_id)
-                self.__task_graph.set_done(task_id)
+                #self.__task_graph.set_done(task_id)
                 self.__task_graph.set_output(task_id, str(exception))
                 
                 for child_id in self.__task_graph.get_children_ids(task_id):
@@ -310,6 +319,7 @@ class CoreEngine:
             if self.__task_graph.contains(task_id):
                 self.__pending_tasks-=1
                 
+                
                               
                 #TODO: I need to call this automatically whenever that thread is done
                 #I need to figure out how to cover the apply function with another function
@@ -326,7 +336,8 @@ class CoreEngine:
                     if self.__task_graph.are_parents_done(child_id):
                         self.__assign_task_to_process(child_id)
                 
-                if self.__task_graph.get_task_type(task_id)=="normal":               
+                if self.__task_graph.get_task_type(task_id)=="normal":
+                                   
                     self.__queue.task_done()        
         
         return inner

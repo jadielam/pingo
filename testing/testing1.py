@@ -28,6 +28,7 @@ class JoinTask(AbstractTask):
     def __call__(self):
         
         print("In JoinTask")
+        #5/0
         to_return="\n".join([str(a) for a in self.parents_output])
         self.output=to_return
         return to_return
