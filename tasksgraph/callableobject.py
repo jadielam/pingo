@@ -7,9 +7,10 @@ from abc import ABCMeta, abstractmethod
 class AbstractTask(object):
     __metaclass__=ABCMeta
     
-    def __init__(self, task_id, input_args):
+    def __init__(self, task_id, input_args, recorders_output=None):
         self.task_id=task_id
         self.input_args=input_args
+        self.recorders_output=recorders_output
         
         #This two cannot be private, because they will be assigned by the CoreEngine just before
         #the object is assigned to a process.

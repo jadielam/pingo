@@ -8,7 +8,7 @@ import pickle
 from tasksgraph.systemtasks import ExceptionTask
 
 class Task:
-    def __init__(self, task_id, parents, input_args, task_class, ttype='normal'):
+    def __init__(self, task_id, parents, input_args, task_class, ttype='normal', reporters_ids=[], reportees_ids=[]):
         self.id=task_id
         if parents == None:
             self.parents=list()
@@ -24,6 +24,29 @@ class Task:
         self.ids_of_parents_done=set()
         self.__type=ttype
         self.__output_file=None
+        
+        #The concept of reporters and reporters is a task that I don't depend on (I can start running myself
+        #even if the reporter has not finished. But if the reporter has finished when I start running, I
+        #get to see the output of the reporter.
+        self.reporters_ids=set(reporters_ids)    #
+        
+        #A reportee is the inverse concept to that of a reporter. A reportee is a task to which I report.
+        self.reportees_ids=set(reportees_ids)
+        
+        #Reportee and reporter are simply grammatical distinctions. Because unless the core engine and the task
+        #task graph take care of executing the idea, nothing will happen. Is something simply optional.
+        
+    def getReporters_ids(self):
+        return self.reporters_ids
+    
+    def getReportees_ids(self):
+        return self.reportees_ids
+    
+    def addReporter_id(self, reporter_id):
+        self.reporters_ids.add(reporter_id)
+        
+    def addReportee_id(self, reportee_id):
+        self.reportees_ids.add(reportee_id)
     
     def setOutputFile(self, output_file):
         self.__output_file=output_file
@@ -267,19 +290,19 @@ class TaskGraph:
         else:
             return False
             
-    def create_task(self, task_id, parent_ids, input_args, callable_object, ttype="normal"):
+    def create_task(self, task_id, parent_ids, input_args, callable_object, ttype="normal", reporters_ids=[], reportees_ids=[]):
         if parent_ids==None:
-            task=Task(task_id, None, input_args, callable_object, ttype)
+            task=Task(task_id, None, input_args, callable_object, ttype, reporters_ids, reportees_ids)
             self.__id_task_dict[task_id]=task
             self.__append_synchronize(task_id)
-            self.synchronize()
+            
         else:
             if not isinstance(parent_ids, list):
                 temp_parents=list()
                 temp_parents.append(parent_ids)
                 parent_ids=temp_parents
              
-            task=Task(task_id, parent_ids, input_args, callable_object, ttype)
+            task=Task(task_id, parent_ids, input_args, callable_object, ttype, reporters_ids, reportees_ids)
             
             self.__id_task_dict[task_id]=task
             
@@ -289,7 +312,18 @@ class TaskGraph:
                 #This ids have been modified, hence, they need to be synchronized. 
             self.__append_synchronize(task_id)
             self.__extend_synchronize(parent_ids)
-            self.synchronize()    
+                    
+        for reporter_id in reporters_ids:
+            if reporter_id in self.__id_task_dict:
+                self.__id_task_dict[reporter_id].addReportee_id(task_id)
+                self.__append_synchronize(reporter_id)
+        
+        for reportee_id in reportees_ids:
+            if reportee_id in self.__id_task_dict:
+                self.__id_task_dict[reportee_id].addReporter_id(task_id)
+                self.__append_synchronize(reportee_id)
+        
+        self.synchronize()            
                 
     def get_normal_children_ids(self, task_id):
         '''
@@ -336,6 +370,20 @@ class TaskGraph:
                 
         return to_return
     
+    def get_reporters_output(self, task_id):
+        #returns a list of outouts of the repoorters to task_id if it is that the reporters have finished.
+        #Otherwise it returns None in that position of the list.
+        to_return = list()
+        if task_id in self.__id_task_dict:
+            task=self.__id_task_dict[task_id]
+            
+            reporters_ids=task.getReporters_ids()
+            for reporter_id in reporters_ids:
+                if reporter_id in self.__id_task_dict:
+                    to_return.append(self.__id_task_dict[reporter_id].getOutput())
+                    
+        return to_return
+            
     def get_input_args(self, task_id):
         if task_id in self.__id_task_dict:
             return self.__id_task_dict[task_id].getInput_args()

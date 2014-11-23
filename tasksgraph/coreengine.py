@@ -238,8 +238,9 @@ class CoreEngine:
             
             #Here is where the magic happens.
             parents_output = self.__task_graph.get_parents_output(task_id)
-            
+            recorders_output = self.__task_graph.get_reporters_output(task_id)
             callable_object.parents_output=parents_output
+            callable_object.recorders_output=recorders_output
                 
             #2. Set the queue
             callable_object.queue=self.__queue
@@ -290,7 +291,6 @@ class CoreEngine:
             if self.__task_graph.contains(task_id):
                 
                 self.__pending_tasks-=1
-                                
                 
                 #TODO: I need to call this automatically whenever that thread is done
                 #I need to figure out how to cover the apply function with another function
