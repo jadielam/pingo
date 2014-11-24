@@ -138,19 +138,21 @@ class TaskGraph:
     def __init__(self, synchronization_file=None):
         self.__id_task_dict=dict()
         self.__to_synchronize=list()
-        self.__synchronization_file=synchronization_file
+        self.__synchronization_file = synchronization_file
+        self.__f = None
         
         #This piece of code first attempts to open a file in read mode.
         #If the file does not exist, it simply creates a new file and opens it in write mode.
-        try:
-            self.__f=open(self.__synchronization_file, "rb+")
-            self.__read_synchronization_file()
-        except:
+        if synchronization_file != None:
             try:
-                self.__f=open(self.__synchronization_file, "wb+")
+                self.__f=open(self.__synchronization_file, "rb+")
+                self.__read_synchronization_file()
             except:
-                print("Error opening synchronization file at TaskGraph.__init__")
-            
+                try:
+                    self.__f=open(self.__synchronization_file, "wb+")
+                except:
+                    print("Error opening synchronization file at TaskGraph.__init__")
+                
     def __del__(self):
         try:
             self.__f.close()
@@ -189,6 +191,8 @@ class TaskGraph:
                         
         except FileNotFoundError:
             print("File "+str(self.__synchronization_file)+" does not exist")
+        except:
+            print("Some other error")
         
     def __append_synchronize(self, task_id):
         if task_id in self.__id_task_dict:
@@ -219,15 +223,16 @@ class TaskGraph:
             #Note, that we only synchronize the tasks that are already finished.
                        
             tasks = [self.__id_task_dict[task_id] for task_id in synchronizing if (self.finished(task_id) or self.failed(task_id))]
-            #try:
+            try:
                                     
-            for i in range(len(tasks)):
-                
-                task=tasks[i]
-                pickle.dump(task, self.__f)
-                
-                     
-            #except:
+                for i in range(len(tasks)):
+                    
+                    task=tasks[i]
+                    pickle.dump(task, self.__f)
+                    
+             
+            except:
+                print("Error in TaskGraph.synchronize()")
                 #Code left here for future reference, if I ever implement this that way.
                 # We take care of things this way anticipating some multi-hreading in this method.
                 
@@ -405,7 +410,7 @@ class TaskGraph:
     
     def set_task_class(self, task_id, task_class, input_args=None):
         if task_id in self.__id_task_dict:
-            self.__id_task_dict[task_id].setTask_class(task_class, input_args)
+            self.__id_task_dict[task_id].setTask_class(task_class, input_args) 
             
     def are_parents_done(self, task_id):
         '''
@@ -477,7 +482,7 @@ class TaskGraph:
             if task.isDone():
                 child.father_finished(task_id)
             if task.getState()=='failed':
-                child.setTask_class(ExceptionTask(child.getId(), child.getInput_args()))
+                child.setTask_class(ExceptionTask, child.getInput_args())
         
             self.__append_synchronize(task_id)
             self.__append_synchronize(child_id)

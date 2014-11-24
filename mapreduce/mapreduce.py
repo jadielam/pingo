@@ -9,8 +9,8 @@ from tasksgraph.callableobject import AbstractTask
 class MapClass(AbstractTask):
     
     def __call__(self):
-        
-        map_function = self.input_args['map_function']
+        print("In MapClass")
+        map_function = self.input_args['m_function']
         input_m = self.input_args['input_m']
         
         return map_function(input_m)
@@ -18,7 +18,7 @@ class MapClass(AbstractTask):
 class ReduceClass(AbstractTask):
     
     def __call__(self):
-        
+        print("In ReduceClass")
         reduce_function = self.input_args['r_function']
         input_r = self.input_args['input_r']
         
@@ -35,7 +35,7 @@ class ShuffleClass(AbstractTask):
         I count the number of different keys to determine how to divide the load among reducers
         I send each tuple to the corresponding reducer and create the reducers to run
         '''
-        
+        print("In ShuffleClass")
         r_function = self.input_args['r_function']
         n_reducers = self.input_args['n_reducers']
         
@@ -44,7 +44,10 @@ class ShuffleClass(AbstractTask):
             r_input =  list()
             for output_list in self.parents_output:
                 r_input.extend(output_list)
-            self.create_task(ReduceClass, [], r_input)
+            input_args_r = dict()
+            input_args_r['input_r'] = r_input
+            input_args_r['r_function'] = r_function
+            self.create_task(ReduceClass, [], input_args_r)
         
         else:
             
@@ -83,7 +86,7 @@ class ShuffleClass(AbstractTask):
                             
             #Sending the reducers to work
             for i in range(n_reducers):
-                input_args_r=dict()
+                input_args_r = dict()
                 input_args_r['r_function'] = r_function
                 input_args_r['input_r'] = r_input_lists[i]
                 
@@ -109,11 +112,15 @@ class MapReduce(AbstractTask):
         
         #2. Creating the mappers tasks
         for input_p in partition:
-            mappers.append(self.create_task(MapClass, [], input_p))
+            input_map_d = dict()
+            input_map_d['m_function'] = self.input_args['m_function']
+            input_map_d['input_m'] = input_p
+            mappers.append(self.create_task(MapClass, [], input_map_d))
             
         #3. Shuffler
         #creating the input to the shuffler task, because it will be the task that will create the reducer task
         s_input = dict()
+        print(len(mappers))
         s_input['r_function'] = self.input_args['r_function']
         s_input['n_reducers'] = self.input_args['n_reducers']
         self.create_task(ShuffleClass, mappers, s_input)
@@ -121,10 +128,10 @@ class MapReduce(AbstractTask):
         
 import multiprocessing
 import threading
-from tasksgraph.corenegine import CoreEngine
+from tasksgraph.coreengine import CoreEngine
     
 class MapReduceManager:
-    def __init__(self, m_function, r_function, input_m, n_mappers,  n_reducers=1, ir_function=None, ):
+    def __init__(self, m_function, r_function, input_m, n_mappers,  n_reducers=1, ir_function = None, synchronization_file = None):
         self.input_values = dict()
         self.input_values['m_function'] = m_function
         self.input_values['r_function'] = r_function
@@ -132,8 +139,9 @@ class MapReduceManager:
         self.input_values['n_reducers'] = n_reducers
         self.input_values['ir_function'] = ir_function
         self.input_values['input_m'] = input_m
+        self.__synchronization_file = synchronization_file
            
-    def compute(self):
+    def __call__(self):
         
         manager = multiprocessing.Manager()
         
