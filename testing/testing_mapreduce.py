@@ -13,18 +13,18 @@ def map_function(input_values):
     '''
     map_function takes as input a list of values, and returns as output a list of key-value pairs
     '''
-    print("At the beginning of map_function")
+    
     to_return = list()
     for i in input_values:
         to_return.append((i, 1))
-    print("At the end of map_function")
+    
     return to_return
 
 def reduce_function(input_tuples):
     '''
     reduce_function takes as input a list of key-value pairs, and returns as output anything it wants
     '''
-    print("IN reduce function")
+    
     value_count_d = dict()
     for tuple_r in input_tuples:
         key = tuple_r[0]

@@ -9,7 +9,7 @@ from tasksgraph.callableobject import AbstractTask
 class MapClass(AbstractTask):
     
     def __call__(self):
-        print("In MapClass")
+        
         map_function = self.input_args['m_function']
         input_m = self.input_args['input_m']
         

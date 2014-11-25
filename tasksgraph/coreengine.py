@@ -30,11 +30,11 @@ class IdAssignerTask(object):
     The AbstractTask threads will be the producers of requests.
     '''
     
-    def __init__(self, pipe_conn, pipe_condition):
+    def __init__(self, pipe_conn, pipe_condition, task_id):
         self.__context_manager=NestedContextManager()
         self.__pipe_conn=pipe_conn
         self.__pipe_condition=pipe_condition
-        
+        self.__task_id = task_id
     
     def __call__(self):
         '''
@@ -42,36 +42,18 @@ class IdAssignerTask(object):
         of the connection, and it will finish executing.
         '''
         
-        finish_flag=False
-         
         while True:
             
-            self.__pipe_condition.acquire()
-            while True:
-                try:
-                    self.__pipe_condition.wait()
-                except:
-                    finish_flag=True
-                    break
+            try:
                 
-                #The recv call is blocking.
-                #That is why we need a condition to make this efficient.
                 context_id=self.__pipe_conn.recv()
                 if context_id:
+                    next_task_id=self.__context_manager.get_next_task_id(context_id)
+                    self.__pipe_conn.send(next_task_id)
+                else:
                     break
-            
-            if finish_flag:
-                "closing pipe"
-                self.__pipe_conn.close()
+            except:
                 break
-            
-            self.__pipe_condition.release()
-            
-            
-            
-            next_task_id=self.__context_manager.get_next_task_id(context_id)
-            self.__pipe_conn.send(next_task_id)
-            
     
 class CoreEngine:
     '''
@@ -251,7 +233,7 @@ class CoreEngine:
             callable_object.condition=condition
             callable_object.pipe_conn=conn1
             
-            id_assigner_thread=threading.Thread(target=IdAssignerTask(conn2, condition))
+            id_assigner_thread=threading.Thread(target=IdAssignerTask(conn2, condition, task_id))
             id_assigner_thread.start()
             
             self.__workers.apply_async(func=callable_object,
