@@ -96,12 +96,17 @@ class MapReduce(AbstractTask):
     
     def __chunks(self, li, n):
         '''
-        Returns a list of n lists that constitute a partition of list li
+        Returns a list of n lists that constitute a partition of list li of size n
         
         '''
         if n < 1:
             n = 1
-        return [li[i:i + n] for i in range(0, len(li), n)]
+        
+        remainder = len(li) % n
+        exact_length = len(li) + n*remainder
+        partition_size = exact_length // n
+            
+        return [li[i:i + partition_size] for i in range(0, len(li), partition_size)]
     
     def __call__(self):
         
@@ -120,7 +125,6 @@ class MapReduce(AbstractTask):
         #3. Shuffler
         #creating the input to the shuffler task, because it will be the task that will create the reducer task
         s_input = dict()
-        print(len(mappers))
         s_input['r_function'] = self.input_args['r_function']
         s_input['n_reducers'] = self.input_args['n_reducers']
         self.create_task(ShuffleClass, mappers, s_input)
@@ -150,6 +154,7 @@ class MapReduceManager:
         queue.put((MapReduce, 'root', self.input_values, None))
         
         core_engine_thread = threading.Thread(target=CoreEngine(max([self.input_values['n_mappers'], self.input_values['n_reducers']]), queue, manager, [], self.__synchronization_file))
+        
         core_engine_thread.start()
         
         queue.join()
