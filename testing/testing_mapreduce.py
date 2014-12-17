@@ -51,7 +51,7 @@ def main():
     mr_manager_process.start()
     mr_manager_process.join()
     
-    pass
+    
 
 if __name__=="__main__":
     main()

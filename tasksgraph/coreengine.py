@@ -7,6 +7,7 @@ and I call the parent_done method on the child.
 '''
 import multiprocessing
 import threading
+import traceback
 from multiprocessing import Pool
 
 
@@ -268,8 +269,9 @@ class CoreEngine:
             This is the most elegant solution I could come up with.
             '''    
             
-            print("Exception: "+str(exception))
-            
+            print(str(exception))
+            print("exception")
+                        
             if self.__task_graph.contains(task_id):
                 
                 self.__pending_tasks-=1
@@ -284,14 +286,14 @@ class CoreEngine:
                 for child_id in self.__task_graph.get_children_ids(task_id):
                     self.__task_graph.set_father_finished(child_id, task_id)
                     self.__task_graph.set_task_class(child_id, ExceptionTask, self.__task_graph.get_input_args(child_id))
-                    print("got here")
+                    
                     if self.__task_graph.are_parents_done(child_id):
-                        print("got here inside")
+                        
                         self.__assign_task_to_process(child_id)
                 
-                if self.__task_graph.get_task_type(task_id)=="normal":
+                if self.__task_graph.get_task_type(task_id) == "normal":
                     self.__queue.task_done()
-            print("finished here.")
+            
         return inner
     
     def __task_finished(self, callable_object):
